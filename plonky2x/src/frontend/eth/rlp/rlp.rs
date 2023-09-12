@@ -12,8 +12,9 @@ use plonky2::iop::witness::PartitionWitness;
 use plonky2::plonk::circuit_data::CommonCircuitData;
 use plonky2::util::serialization::{Buffer, IoResult};
 
+use crate::frontend::num::u32::gadgets::multiple_comparison::list_le_circuit;
 use crate::prelude::{
-    ArrayVariable, BoolVariable, ByteVariable, CircuitBuilder, CircuitVariable, Variable,
+    ArrayVariable, BoolVariable, ByteVariable, CircuitBuilder, CircuitVariable, Variable, BytesVariable,
 };
 
 pub fn bool_to_u32(b: bool) -> u32 {
@@ -223,6 +224,133 @@ impl<
             len_decoded_list,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn verify_decoded_list(
+        builder: &mut CircuitBuilder<F, D>,
+        list: ArrayVariable<ArrayVariable<ByteVariable, 32>, LIST_LEN>,
+        lens: ArrayVariable<ByteVariable, LIST_LEN>,
+        encoding: ArrayVariable<ByteVariable, ENCODING_LEN>
+    ) {
+        let random = builder.constant::<Variable>(F::from_canonical_i64(1000));
+
+        let mut size_accumulator = builder.constant::<Variable>(F::from_canonical_u32(0));
+        let mut claim_poly = builder.constant::<Variable>(F::from_canonical_u32(0));
+
+        let one = builder.constant::<Variable>(F::ONE);
+
+        for i in 0..LIST_LEN {
+            let (start_byte, list_len) = Self::parse_list_element(&mut builder, list[i], lens[i]);
+            let size_accumulator_bits = builder.to_le_bits(size_accumulator);
+            let rm_pow_sa = builder.api.exp_from_bits(random, size_accumulator_bits.iter()); // change to Variable
+            let mut poly = builder.mul(start_byte, rm_pow_sa);
+            for j in 0..32 {
+                let list_idx = list[i][j];
+
+                let size_accum_1 = builder.add(size_accumulator, one);
+                let j_variable = builder.constant(F::from_canonical_u8(j as u32));
+                let size_accum1_j = builder.add(size_accum_1, j_variable);
+                let size_accum_j1 = builder.to_le_bits(size_accum1_j);
+                let rm_pow_sa_j1 = builder.api.exp_from_bits(random, size_accum_j1.iter()); // change to Variable
+
+                let j_leq_lst_len = Self::leq_than(&mut builder, j_variable, list_len);
+                let res_j_leq_lst_len = Self::boolvar_to_var(&mut builder, j_leq_lst_len);
+
+                let vals_to_mul = Vec::new();
+                vals_to_mul.push(poly_list_inx);
+                vals_to_mul.push(rm_pow_sa_j1);
+                vals_to_mul.push(res_j_leq_lst_len);
+
+                let temp_poly = builder.mul_many(&vals_to_mul[..]);
+                poly = builder.add(poly, temp_poly);
+            }
+            let one_list_len = builder.api.add_const(list_len, one); // change to Variable
+            size_accumulator = builder.add(size_accumulator, one_list_len);
+            claim_poly = builder.add(claim_poly, poly);
+        }
+
+        let mut encoding_poly = builder.constant::<Variable>(F::from_canonical_u32(0));
+        for i in 3..ENCODING_LEN {
+            // TODO: don't hardcode 3 here "this is a note from the succintx team"
+            let idx = i - 3;
+
+            let curr_enc = encoding[i];
+            let rndm_pow_idx = builder.api.exp_u64(random, idx as u64); // change to Variable
+
+            let id_leq_sizeacc = Self::leq_than(&mut builder, idx, size_accumulator);
+            let res_id_leq_sizeacc = boolvar_to_var(id_leq_sizeacc);
+
+            let vals_to_mul = Vec::new();
+            vals_to_mul.push(curr_enc);
+            vals_to_mul.push(rndm_pow_idx);
+            vals_to_mul.push(res_id_leq_sizeacc);
+
+            let temp_encoding_poly = builder.mul_many(&vals_to_mul[..]);
+            encoding_poly = builder.add(encoding_poly, temp_encoding_poly);
+        }
+
+        let clpol_eq_encpol = builder.assert_is_equal(claim_poly, encoding_poly);
+    }
+
+    fn parse_list_element(
+        builder: &mut CircuitBuilder<F, D>,
+        element: ArrayVariable<ByteVariable, 32>,
+        len: ByteVariable
+    ) -> (ByteVariable, ByteVariable) {
+        let prefix = element[0];
+        let zero = builder.constant(F::ZERO);
+        let one = builder.constant(F::ONE);
+        let _0x7f = builder.constant(F::from_canonical_u8(0x7F));
+        let _0x80 = builder.constant(F::from_canonical_u8(0x80));
+
+        let len_eq_0 = builder.is_equal(len, zero);
+        let len_eq_1 = builder.is_equal(len, one);
+        let prx_leq_n = Self::leq_than(&mut builder, prefix, _0x7f);
+
+        let test = builder.and(len_eq_1, prx_lt_n);
+        let len_prx_cond = builder.select(prx_lt_n, (prefix as u32, 0), (0x80 + 0x01, 1)); // change to Variables
+        let len_zero_cond = builder.select(len_eq_0, (0x80, 0), len_prx_cond);
+
+        // for dimo: how to return strings in circuit form/ What to do in the error case
+        let _0x80_0 = BytesVariable::<2>::init(&mut builder);
+        let prx_0 = BytesVariable::<2>::init(&mut builder);
+        let _len_0x80 = builder.add(len, _0x80);
+        let len_0x80 = BytesVariable::<2>::init(&mut builder);
+
+        _0x80_0.0.copy_from_slice(&[_0x80, zero]);
+        prx_0.0.copy_from_slice(&[prefix, zero]);
+        len_0x80.0.copy_from_slice(&[_len_0x80, len]);
+
+        let res = builder.select(len_eq_0, _0x80_0,
+            builder.select(builder.and(len_eq_1, prx_leq_n), prx_0, len_0x80
+        ));
+
+        (res.0[0], res.0[1])
+    }
+
+    pub fn boolvar_to_var(
+        builder: &mut CircuitBuilder<F, D>,
+        b: BoolVariable
+    ) -> Variable {
+        let one = builder.constant(F::ONE);
+        let zero = builder.constant(F::ZERO);
+        let res = builder.select(b, one, zero);
+
+        res
+    }
+
+    pub fn leq_than(
+        builder: &mut CircuitBuilder<F, D>,
+        lhs: Variable,
+        rhs: Variable
+    ) -> Boolvariable {
+        let mut lhs_vector = Vec::new();
+        let mut rhs_vector = Vec::new();
+
+        lhs_vector.push(lhs);
+        rhs_vector.push(rhs);
+
+        BoolVariable(list_le_circuit(&mut builder, lhs_vector, rhs_vector, 32)) // check num_bits value's truthfulness
     }
 }
 
