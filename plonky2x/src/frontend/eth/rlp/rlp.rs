@@ -253,7 +253,7 @@ impl<
                 let size_accum_j1 = builder.to_le_bits(size_accum1_j);
                 let rm_pow_sa_j1 = builder.exp_from_bits(random, size_accum_j1.iter());
 
-                let j_leq_lst_len = Self::leq_than(&mut builder, j_variable, list_len);
+                let j_leq_lst_len = Self::leq(&mut builder, j_variable, list_len);
                 let res_j_leq_lst_len = Self::boolvar_to_var(&mut builder, j_leq_lst_len);
 
                 let vals_to_mul = Vec::new();
@@ -277,7 +277,7 @@ impl<
             let curr_enc = encoding[i];
             let rndm_pow_idx = builder.exp_u64(random, idx as u64);
 
-            let id_leq_sizeacc = Self::leq_than(&mut builder, idx, size_accumulator);
+            let id_leq_sizeacc = Self::leq(&mut builder, idx, size_accumulator);
             let res_id_leq_sizeacc = boolvar_to_var(id_leq_sizeacc);
 
             let vals_to_mul = Vec::new();
@@ -305,7 +305,7 @@ impl<
 
         let len_eq_0 = builder.is_equal(len, zero);
         let len_eq_1 = builder.is_equal(len, one);
-        let prx_leq_n = Self::leq_than(&mut builder, prefix, _0x7f);
+        let prx_leq_n = Self::leq(&mut builder, prefix, _0x7f);
 
         // for dimo: how to return strings in circuit form/ What to do in the error case
         let _0x80_0 = BytesVariable::<2>::init(&mut builder);
@@ -335,7 +335,7 @@ impl<
         res
     }
 
-    pub fn leq_than(
+    pub fn leq(
         builder: &mut CircuitBuilder<F, D>,
         lhs: Variable,
         rhs: Variable
