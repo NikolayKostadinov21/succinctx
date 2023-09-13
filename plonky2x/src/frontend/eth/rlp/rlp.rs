@@ -302,12 +302,12 @@ impl<
         let one = builder.constant::<Variable>(F::ONE);
         let _0x7f = builder.constant::<ByteVariable>(F::from_canonical_u8(0x7F));
         let _0x80 = builder.constant(F::from_canonical_u8(0x80));
+        let _55 = builder.constant(F::from_canonical_u8(0x80));
 
         let len_eq_0 = builder.is_equal(len, zero);
         let len_eq_1 = builder.is_equal(len, one);
         let prx_leq_n = Self::leq(&mut builder, prefix, _0x7f);
 
-        // for dimo: how to return strings in circuit form/ What to do in the error case
         let _0x80_0 = BytesVariable::<2>::init(&mut builder);
         let prx_0 = BytesVariable::<2>::init(&mut builder);
         let _len_0x80 = builder.add(len, _0x80);
@@ -317,11 +317,13 @@ impl<
         prx_0.0.copy_from_slice(&[prefix, zero]);
         len_0x80.0.copy_from_slice(&[_len_0x80, len]);
 
+        let len_is_leq_55_pred = Self::leq(&mut builder, len, _55);
+        builder.api.assert_bool(len_is_leq_55_pred);
         let res = builder.select(len_eq_0, _0x80_0,
             builder.select(builder.and(len_eq_1, prx_leq_n), prx_0, len_0x80
         ));
 
-        (res.0[0], res.0[1])
+        (res[0], res[1])
     }
 
     pub fn boolvar_to_var(
