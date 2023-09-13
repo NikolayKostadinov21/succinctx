@@ -245,7 +245,7 @@ impl<
             let rm_pow_sa = builder.exp_from_bits(random, size_accumulator_bits.iter());
             let mut poly = builder.mul(start_byte, rm_pow_sa);
             for j in 0..32 {
-                let list_idx = list[i][j];
+                let elem = list[i][j];
 
                 let size_accum_1 = builder.add(size_accumulator, one);
                 let j_variable = builder.constant(F::from_canonical_u8(j as u32));
@@ -256,13 +256,8 @@ impl<
                 let j_leq_lst_len = Self::leq(&mut builder, j_variable, list_len);
                 let res_j_leq_lst_len = Self::boolvar_to_var(&mut builder, j_leq_lst_len);
 
-                let vals_to_mul = Vec::new();
-                vals_to_mul.push(poly_list_inx);
-                vals_to_mul.push(rm_pow_sa_j1);
-                vals_to_mul.push(res_j_leq_lst_len);
-
-                let temp_poly = builder.mul_many(&vals_to_mul[..]);
-                poly = builder.add(poly, temp_poly);
+                let monomial_eval = builde.mul(elm, builder.mul(rm_pow_sa_j1, res_j_leq_lst_len));
+                poly = builder.add(poly, monomial_eval);
             }
             let one_list_len = builder.add_const(list_len, one);
             size_accumulator = builder.add(size_accumulator, one_list_len);
@@ -280,13 +275,8 @@ impl<
             let id_leq_sizeacc = Self::leq(&mut builder, idx, size_accumulator);
             let res_id_leq_sizeacc = boolvar_to_var(id_leq_sizeacc);
 
-            let vals_to_mul = Vec::new();
-            vals_to_mul.push(curr_enc);
-            vals_to_mul.push(rndm_pow_idx);
-            vals_to_mul.push(res_id_leq_sizeacc);
-
-            let temp_encoding_poly = builder.mul_many(&vals_to_mul[..]);
-            encoding_poly = builder.add(encoding_poly, temp_encoding_poly);
+            let monomial_eval = builder.mul(curr_enc, builder.mul(rndm_pow_idx, res_id_leq_sizeacc));
+            encoding_poly = builder.add(encoding_poly, monomial_eval);
         }
 
         let clpol_eq_encpol = builder.assert_is_equal(claim_poly, encoding_poly);
