@@ -114,6 +114,25 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     }
 }
 
+/// The addition of constant operation.
+///
+/// Types implementing this trait can be used within the `builder.add_const(lhs, rhs)` method.
+pub trait Add_Const<F: RichField + Extendable<D>, const D: usize, Rhs = Self> {
+    /// The output type of the operation.
+    type Output;
+
+    fn add_const(self, rhs: Rhs, builder: &mut CircuitBuilder<F, D>) -> Self::Output;
+}
+
+impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
+    pub fn add_const<Lhs, Rhs>(&mut self, lhs: Lhs, rhs: Rhs) -> <Lhs as Add_Const<F, D, Rhs>>::Output
+    where
+        Lhs: Add_Const<F, D, Rhs>,
+    {
+        lhs.add_const(rhs, self)
+    }
+}
+
 /// A zero element
 ///
 /// Types implementing this trait can be used via the `builder.zero()` method.

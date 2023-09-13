@@ -264,7 +264,7 @@ impl<
                 let temp_poly = builder.mul_many(&vals_to_mul[..]);
                 poly = builder.add(poly, temp_poly);
             }
-            let one_list_len = builder.api.add_const(list_len, one); // change to Variable
+            let one_list_len = builder.add_const(list_len, one);
             size_accumulator = builder.add(size_accumulator, one_list_len);
             claim_poly = builder.add(claim_poly, poly);
         }
@@ -298,18 +298,14 @@ impl<
         len: ByteVariable
     ) -> (ByteVariable, ByteVariable) {
         let prefix = element[0];
-        let zero = builder.constant(F::ZERO);
-        let one = builder.constant(F::ONE);
-        let _0x7f = builder.constant(F::from_canonical_u8(0x7F));
+        let zero = builder.constant::<Variable>(F::ZERO);
+        let one = builder.constant::<Variable>(F::ONE);
+        let _0x7f = builder.constant::<ByteVariable>(F::from_canonical_u8(0x7F));
         let _0x80 = builder.constant(F::from_canonical_u8(0x80));
 
         let len_eq_0 = builder.is_equal(len, zero);
         let len_eq_1 = builder.is_equal(len, one);
         let prx_leq_n = Self::leq_than(&mut builder, prefix, _0x7f);
-
-        let test = builder.and(len_eq_1, prx_lt_n);
-        let len_prx_cond = builder.select(prx_lt_n, (prefix as u32, 0), (0x80 + 0x01, 1)); // change to Variables
-        let len_zero_cond = builder.select(len_eq_0, (0x80, 0), len_prx_cond);
 
         // for dimo: how to return strings in circuit form/ What to do in the error case
         let _0x80_0 = BytesVariable::<2>::init(&mut builder);

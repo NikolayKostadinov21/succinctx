@@ -209,6 +209,26 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
     pub fn to_be_bits<V: EvmVariable>(&mut self, variable: V) -> Vec<BoolVariable> {
         variable.to_be_bits(self)
     }
+
+    pub fn exp_from_bits<V: CircuitVariable>(
+        &mut self,
+        base: Variable,
+        exponent_bits: impl IntoIterator<Item = impl Borrow<BoolVariable>>
+    ) -> Variable {
+        let result = self.exp_from_bits(base.0, exponent_bits.iter());
+
+        Variable(result)
+    }
+
+    pub fn exp_u64<V: CircuitVariable>(
+        &mut self,
+        base: Variable,
+        mut exponent: u64
+    ) -> Variable {
+        let result = self.exp_u64(base.0, exponent);
+
+        Variable(result)
+    }
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> Default for CircuitBuilder<F, D> {
