@@ -242,7 +242,7 @@ impl<
         for i in 0..LIST_LEN {
             let (start_byte, list_len) = Self::parse_list_element(&mut builder, list[i], lens[i]);
             let size_accumulator_bits = builder.to_le_bits(size_accumulator);
-            let rm_pow_sa = builder.api.exp_from_bits(random, size_accumulator_bits.iter()); // change to Variable
+            let rm_pow_sa = builder.exp_from_bits(random, size_accumulator_bits.iter());
             let mut poly = builder.mul(start_byte, rm_pow_sa);
             for j in 0..32 {
                 let list_idx = list[i][j];
@@ -251,7 +251,7 @@ impl<
                 let j_variable = builder.constant(F::from_canonical_u8(j as u32));
                 let size_accum1_j = builder.add(size_accum_1, j_variable);
                 let size_accum_j1 = builder.to_le_bits(size_accum1_j);
-                let rm_pow_sa_j1 = builder.api.exp_from_bits(random, size_accum_j1.iter()); // change to Variable
+                let rm_pow_sa_j1 = builder.exp_from_bits(random, size_accum_j1.iter());
 
                 let j_leq_lst_len = Self::leq_than(&mut builder, j_variable, list_len);
                 let res_j_leq_lst_len = Self::boolvar_to_var(&mut builder, j_leq_lst_len);
@@ -275,7 +275,7 @@ impl<
             let idx = i - 3;
 
             let curr_enc = encoding[i];
-            let rndm_pow_idx = builder.api.exp_u64(random, idx as u64); // change to Variable
+            let rndm_pow_idx = builder.exp_u64(random, idx as u64);
 
             let id_leq_sizeacc = Self::leq_than(&mut builder, idx, size_accumulator);
             let res_id_leq_sizeacc = boolvar_to_var(id_leq_sizeacc);

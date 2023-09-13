@@ -215,9 +215,7 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
         base: Variable,
         exponent_bits: impl IntoIterator<Item = impl Borrow<BoolVariable>>
     ) -> Variable {
-        let result = self.exp_from_bits(base.0, exponent_bits.iter());
-
-        Variable(result)
+        Variable(self.exp_from_bits(base.0, exponent_bits))
     }
 
     pub fn exp_u64<V: CircuitVariable>(
@@ -225,9 +223,7 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
         base: Variable,
         mut exponent: u64
     ) -> Variable {
-        let result = self.exp_u64(base.0, exponent);
-
-        Variable(result)
+        Variable(self.exp_u64(base.0, exponent))
     }
 }
 
