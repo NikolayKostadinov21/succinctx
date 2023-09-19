@@ -12,6 +12,7 @@ use plonky2::iop::witness::PartitionWitness;
 use plonky2::plonk::circuit_data::CommonCircuitData;
 use plonky2::util::serialization::{Buffer, IoResult};
 
+use crate::frontend::eth::mpt::reference::assert_bytes_equal;
 use crate::frontend::num::u32::gadgets::multiple_comparison::list_le_circuit;
 use crate::prelude::{
     ArrayVariable, BoolVariable, ByteVariable, CircuitBuilder, CircuitVariable, Variable, BytesVariable,
@@ -176,7 +177,7 @@ pub fn verify_decoded_list<const L: usize, const M: usize>(
             * (random.pow(idx as u32))
             * bool_to_u32(idx < size_accumulator as usize);
     }
-
+    
     assert!(claim_poly == encoding_poly);
 }
 
@@ -226,6 +227,16 @@ impl<
         }
     }
 
+    pub fn rlp_encode<const L: usize>(
+        list: ArrayVariable<ArrayVariable<ByteVariable, 32>, LIST_LEN>,
+    ) {
+        // builder.api.assert_bool(len_is_leq_55_pred);
+        //     let res = builder.select(len_eq_0, _0x80_0,
+        //         builder.select(builder.and(len_eq_1, prx_leq_n), prx_0, len_0x80
+        //     ));
+
+    }
+
     pub fn verify_decoded_list(
         builder: &mut CircuitBuilder<F, D>,
         list: ArrayVariable<ArrayVariable<ByteVariable, 32>, LIST_LEN>,
@@ -238,6 +249,7 @@ impl<
         let mut claim_poly = builder.constant::<Variable>(F::from_canonical_u32(0));
 
         let one = builder.constant::<Variable>(F::ONE);
+        let zero = builder.constant::<Variable>(F::ZERO);
 
         for i in 0..LIST_LEN {
             let (start_byte, list_len) = Self::parse_list_element(&mut builder, list[i], lens[i]);
@@ -256,7 +268,7 @@ impl<
                 let j_leq_lst_len = Self::leq(&mut builder, j_variable, list_len);
                 let res_j_leq_lst_len = Self::boolvar_to_var(&mut builder, j_leq_lst_len);
 
-                let monomial_eval = builde.mul(elm, builder.mul(rm_pow_sa_j1, res_j_leq_lst_len));
+                let monomial_eval = builder.mul(elm, builder.mul(rm_pow_sa_j1, res_j_leq_lst_len));
                 poly = builder.add(poly, monomial_eval);
             }
             let one_list_len = builder.add_const(list_len, one);
@@ -264,9 +276,13 @@ impl<
             claim_poly = builder.add(claim_poly, poly);
         }
 
+        for i in 0..32 {
+            let subarr_verification = builder.assert_subarray_equal(a, zero, &encoding, zero, encoding.len());
+        }
+
         let mut encoding_poly = builder.constant::<Variable>(F::from_canonical_u32(0));
         for i in 3..ENCODING_LEN {
-            // TODO: don't hardcode 3 here "this is a note from the succintx team"
+            // TODO: don't hardcode 3 here
             let idx = i - 3;
 
             let curr_enc = encoding[i];
@@ -314,6 +330,27 @@ impl<
         ));
 
         (res[0], res[1])
+    }
+
+    fn encode_length(
+        builder: &mut CircuitBuilder<F, D>,
+        l: Variable,
+        offset: Variable
+    ) -> Variable {
+        let one = builder.constant::<Variable>(F::ONE);
+        let 256_pow_8 = builder.exp_u64(F::from_canonical_u8(256), 8 as u64);
+        let exp8_min_1 = builder.sub(256_pow_8, one);
+        let l_leq_256_pow_8 = Self::leq(&mut builder, l, exp8_min_1);
+
+        let l_offset = builder.add(l, offset);
+        let offset_55 = builder.add(offset, F::from_canonical_u8(55));
+        let l_to_binary = builder.to_le_bits(l);
+
+        res = builder.select(
+            l_leq_256_pow_8,
+            ByteVariable(l_offset),
+            ByteVariable(l_to_binary.len() + offset_55) + l_to_binary
+        )
     }
 
     pub fn boolvar_to_var(
