@@ -229,27 +229,6 @@ impl<
         }
     }
 
-    fn encode_length(
-        builder: &mut CircuitBuilder<F, D>,
-        l: Variable,
-        offset: Variable
-    ) -> Variable {
-        let one = builder.constant::<Variable>(F::ONE);
-        let 256_pow_8 = builder.exp_u64(F::from_canonical_u8(256), 8 as u64);
-        let exp8_min_1 = builder.sub(256_pow_8, one);
-        let l_leq_256_pow_8 = Self::leq(&mut builder, l, exp8_min_1);
-
-        let l_offset = builder.add(l, offset);
-        let offset_55 = builder.add(offset, F::from_canonical_u8(55));
-        let l_to_binary = builder.to_le_bits(l);
-
-        res = builder.select(
-            l_leq_256_pow_8,
-            ByteVariable(l_offset),
-            ByteVariable(l_to_binary.len() + offset_55) + l_to_binary
-        )
-    }
-
     pub fn boolvar_to_var(
         builder: &mut CircuitBuilder<F, D>,
         b: BoolVariable
@@ -381,60 +360,9 @@ impl<F: RichField + Extendable<D>, const D: usize> CircuitBuilder<F, D> {
                 encoded_decoding.push(list[i][j]);
             }
 
-            let test = &encoded_decoding[..];
             self.subarray_equal(&encoded_decodng[..], 0, &encoding, start_idx, encoded_decoding.len());
             start_idx += encoded_decoding.len();
         }
-
-
-        let random = self.constant::<Variable>(F::from_canonical_i64(1000));
-
-        let mut size_accumulator = self.constant::<Variable>(F::from_canonical_u32(0));
-        let mut claim_poly = self.constant::<Variable>(F::from_canonical_u32(0));
-
-        let one = self.constant::<Variable>(F::ONE);
-
-        for i in 0..LIST_LEN {
-            let (start_byte, list_len) = self.parse_list_element(list[i], lens[i]);
-            let size_accumulator_bits = self.to_le_bits(size_accumulator);
-            let rm_pow_sa = self.exp_from_bits(random, size_accumulator_bits.iter());
-            let mut poly = self.mul(start_byte, rm_pow_sa);
-            for j in 0..32 {
-                let elem = list[i][j];
-
-                let size_accum_1 = self.add(size_accumulator, one);
-                let j_variable = self.constant(F::from_canonical_u8(j as u32));
-                let size_accum1_j = self.add(size_accum_1, j_variable);
-                let size_accum_j1 = self.to_le_bits(size_accum1_j);
-                let rm_pow_sa_j1 = self.exp_from_bits(random, size_accum_j1.iter());
-
-                let j_leq_lst_len = Self::leq(&mut self, j_variable, list_len);
-                let res_j_leq_lst_len = Self::boolvar_to_var(&mut self, j_leq_lst_len);
-
-                let monomial_eval = self.mul(elem, self.mul(rm_pow_sa_j1, res_j_leq_lst_len));
-                poly = self.add(poly, monomial_eval);
-            }
-            let one_list_len = self.add_const(list_len, one);
-            size_accumulator = self.add(size_accumulator, one_list_len);
-            claim_poly = self.add(claim_poly, poly);
-        }
-
-        let mut encoding_poly = self.constant::<Variable>(F::from_canonical_u32(0));
-        for i in 3..ENCODING_LEN {
-            // TODO: don't hardcode 3 here "this is a note from the succintx team"
-            let idx = i - 3;
-
-            let curr_enc = encoding[i];
-            let rndm_pow_idx = self.exp_u64(random, idx as u64);
-
-            let id_leq_sizeacc = Self::leq(&mut self, idx, size_accumulator);
-            let res_id_leq_sizeacc = boolvar_to_var(id_leq_sizeacc);
-
-            let monomial_eval = self.mul(curr_enc, self.mul(rndm_pow_idx, res_id_leq_sizeacc));
-            encoding_poly = self.add(encoding_poly, monomial_eval);
-        }
-
-        let clpol_eq_encpol = self.assert_is_equal(claim_poly, encoding_poly);
     }
 
     pub fn decode_element_as_list<
